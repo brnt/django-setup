@@ -1,0 +1,267 @@
+#!/bin/bash
+
+#
+# This script sets up a Django project according to a few conventions, largely
+# based on the recommendations found here:
+#
+# https://github.com/rdegges/deploydjango.com/blob/master/source/django_project_structure/setup.rst
+#
+# Some of the conventions have emerged through my own trial-and-error over
+# time. The project structure is Heroku-centric.
+#
+
+web_folder=web
+project_name=${1:-project}
+
+if [ -d "$project_name" -o -d "$web_folder" ]; then
+	echo "Project folder exists. Cowardly refusing to continue."
+	exit 1
+fi
+
+if [ -f README.md ]; then
+	echo "README.md exists. Not gonna touch it."
+else
+	echo "# $project_name" > README.md
+fi
+
+django-admin.py startproject "$project_name"
+mv "$project_name" "$web_folder"
+
+### web folder
+cd "$web_folder"
+
+if [ -f Procfile ]; then
+	echo "Procfile exists. Not gonna touch it."
+else
+	echo "web: ./bin/runserver" > Procfile
+fi
+
+mkdir bin
+cat << EOF > bin/runserver
+#!/bin/sh
+set -eux
+python manage.py migrate
+exec gunicorn billboards.wsgi --log-file -
+EOF
+chmod +x bin/runserver
+
+
+virtualenv env
+. ./env/bin/activate
+pip install django==1.8.8 pytz whitenoise
+
+mkdir requirements
+pip freeze > requirements/common.txt
+echo '-r common.txt' > requirements/prod.txt
+cp -p requirements/prod.txt requirements/dev.txt
+cp -p requirements/prod.txt requirements/test.txt
+cat << EOF >> requirements/prod.txt
+dj-database-url>=0.3.0
+psycopg2>=2.6.1
+gunicorn>=19.1.1
+EOF
+
+echo '-r requirements/prod.txt' > requirements.txt
+
+### project folder
+cd "$project_name"
+mkdir apps libs middleware settings static
+touch {apps,libs,middleware,settings}/__init__.py
+
+mv settings.py settings/common.py
+echo 'from common import *' > settings/dev.py
+cp -p settings/dev.py settings/test.py
+echo "STATIC_ROOT = 'staticfiles'" >> settings/common.py
+
+cat << EOF | patch -p0 wsgi.py
+--- a.py	2015-09-10 12:17:28.000000000 -0600
++++ b.py	2015-09-10 12:18:55.000000000 -0600
+@@ -8,7 +8,8 @@
+ """
+
+ import os
+-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings")
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
+
+ from django.core.wsgi import get_wsgi_application
+-application = get_wsgi_application()
++from whitenoise.django import DjangoWhiteNoise
++application = DjangoWhiteNoise(get_wsgi_application())
+EOF
+
+cat << EOF > settings/prod.py
+from common import *
+import os, sys, dj_database_url
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True if os.environ.get('DJANGO_DEBUG', None) == '1' else False
+
+TEMPLATE_DEBUG = False
+
+DATABASES = {
+	'default': dj_database_url.config(),
+}
+
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'console':{
+            'level':'INFO',
+            'class':'logging.StreamHandler',
+            'stream': sys.stdout
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    }
+}
+
+# ALLOWED_HOSTS can't be empty if DEBUG == False
+ALLOWED_HOSTS = os.environ.get('DJANGO_HOSTS', '*').split(':')
+
+# Automatically gzip and cache static files
+STATICFILES_STORAGE = 'whitenoise.django.GzipManifestStaticFilesStorage'
+EOF
+
+### up to web folder
+cd ..
+
+echo "DJANGO_SETTINGS_MODULE=${project_name}.settings.dev" > .env
+
+cat << EOF | patch -p0 manage.py
+--- a.py	2015-09-10 11:20:22.000000000 -0600
++++ b.py	2015-09-10 11:28:50.000000000 -0600
+@@ -1,9 +1,30 @@
+ #!/usr/bin/env python
+ import os
+ import sys
++import re
++
++def read_env():
++    try:
++        with open('.env') as f:
++            content = f.read()
++    except IOError:
++        content = ''
++
++    for line in content.splitlines():
++        m1 = re.match(r'\A([A-Za-z_0-9]+)=(.*)\Z', line)
++        if m1:
++            key, val = m1.group(1), m1.group(2)
++            m2 = re.match(r"\A'(.*)'\Z", val)
++            if m2:
++                val = m2.group(1)
++            m3 = re.match(r'\A"(.*)"\Z', val)
++            if m3:
++                val = re.sub(r'\\\\(.)', r'\1', m3.group(1))
++            os.environ.setdefault(key, val)
+ 
+ if __name__ == "__main__":
+-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings")
++    read_env()
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
+ 
+     from django.core.management import execute_from_command_line
+EOF
+
+### up to original folder
+cd ..
+if [ ! -f .gitignore ]; then
+cat << EOF > .gitignore
+# Environment stuff
+.env
+
+# Mac droppings
+*.DS_Store
+
+# Node modules
+node_modules/
+
+# dev DB files
+*.sqlite
+*.sqlite3
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# Distribution / packaging
+env/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+EOF
+fi
+
+echo
+echo "----------------------------------------------------------------------------"
+echo "Project '$project_name' created with following structure:"
+echo
+tree --noreport -a -I env "$web_folder"
+echo
+echo "----------------------------------------------------------------------------"
+echo
+
+echo "To set up Git and do initial push:"
+echo
+echo "	git init"
+echo "	git add .gitignore README.md web"
+echo "	git commit -m 'Initial import'"
+echo "	git remote add origin {URL}"
+echo "	git push -u origin master"
+echo
+
+echo "To push this project to Heroku, run the following command"
+echo "from this folder (assuming you've already got the heroku remote set up:"
+echo
+echo "	git subtree push --prefix web heroku master"
+echo
