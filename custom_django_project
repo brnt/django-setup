@@ -24,12 +24,6 @@ else
 	echo "# $project_name" > README.md
 fi
 
-django-admin.py startproject "$project_name"
-mv "$project_name" "$web_folder"
-
-### web folder
-cd "$web_folder"
-
 if [ -f Procfile ]; then
 	echo "Procfile exists. Not gonna touch it."
 else
@@ -62,6 +56,12 @@ gunicorn>=19.1.1
 EOF
 
 echo '-r requirements/prod.txt' > requirements.txt
+
+django-admin.py startproject "$project_name"
+mv "$project_name" "$web_folder"
+
+### web folder
+cd "$web_folder"
 
 ### project folder
 cd "$project_name"
@@ -159,12 +159,12 @@ cat << EOF | patch -p0 manage.py
 +            if m3:
 +                val = re.sub(r'\\\\(.)', r'\1', m3.group(1))
 +            os.environ.setdefault(key, val)
- 
+
  if __name__ == "__main__":
 -    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings")
 +    read_env()
 +    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
- 
+
      from django.core.management import execute_from_command_line
 EOF
 
