@@ -24,7 +24,12 @@ else
 	echo "# $project_name" > README.md
 fi
 
-django-admin.py startproject "$project_name"
+#virtualenv env
+python3 -m venv env
+. ./env/bin/activate
+pip install django pytz whitenoise
+
+django-admin startproject "$project_name"
 mv "$project_name" "$web_folder"
 
 ### web folder
@@ -45,10 +50,6 @@ exec gunicorn billboards.wsgi --log-file -
 EOF
 chmod +x bin/runserver
 
-
-virtualenv env
-. ./env/bin/activate
-pip install django==1.8.8 pytz whitenoise
 
 mkdir requirements
 pip freeze > requirements/common.txt
@@ -74,19 +75,19 @@ cp -p settings/dev.py settings/test.py
 echo "STATIC_ROOT = 'staticfiles'" >> settings/common.py
 
 cat << EOF | patch -p0 wsgi.py
---- a.py	2015-09-10 12:17:28.000000000 -0600
-+++ b.py	2015-09-10 12:18:55.000000000 -0600
-@@ -8,7 +8,8 @@
- """
-
- import os
--os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings")
-+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
+--- wsgi.py.orig	2019-12-26 21:40:52.000000000 -0700
++++ wsgi.py	2019-12-27 10:23:31.000000000 -0700
+@@ -11,6 +11,8 @@
 
  from django.core.wsgi import get_wsgi_application
--application = get_wsgi_application()
+
+-os.environ.setdefault('DJANGO_SETTINGS_MODULE', '${project_name}.settings')
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', '${project_name}.settings.prod')
++
 +from whitenoise.django import DjangoWhiteNoise
 +application = DjangoWhiteNoise(get_wsgi_application())
+
+-application = get_wsgi_application()
 EOF
 
 cat << EOF > settings/prod.py
@@ -133,10 +134,10 @@ cd ..
 echo "DJANGO_SETTINGS_MODULE=${project_name}.settings.dev" > .env
 
 cat << EOF | patch -p0 manage.py
---- a.py	2015-09-10 11:20:22.000000000 -0600
-+++ b.py	2015-09-10 11:28:50.000000000 -0600
-@@ -1,9 +1,30 @@
- #!/usr/bin/env python
+--- manage.py.orig	2019-12-26 21:40:52.000000000 -0700
++++ manage.py	2019-12-26 21:45:06.000000000 -0700
+@@ -2,10 +2,31 @@
+ """Django's command-line utility for administrative tasks."""
  import os
  import sys
 +import re
@@ -159,13 +160,15 @@ cat << EOF | patch -p0 manage.py
 +            if m3:
 +                val = re.sub(r'\\\\(.)', r'\1', m3.group(1))
 +            os.environ.setdefault(key, val)
- 
- if __name__ == "__main__":
--    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings")
+
+
+ def main():
+-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', '${project_name}.settings')
 +    read_env()
 +    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
- 
-     from django.core.management import execute_from_command_line
+     try:
+         from django.core.management import execute_from_command_line
+     except ImportError as exc:
 EOF
 
 ### up to original folder
