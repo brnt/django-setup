@@ -69,7 +69,7 @@ mkdir apps libs middleware settings static
 touch {apps,libs,middleware,settings}/__init__.py
 
 mv settings.py settings/common.py
-echo 'from common import *' > settings/dev.py
+echo 'from .common import *' > settings/dev.py
 cp -p settings/dev.py settings/test.py
 echo "STATIC_ROOT = 'staticfiles'" >> settings/common.py
 
@@ -90,7 +90,7 @@ cat << EOF | patch -p0 wsgi.py
 EOF
 
 cat << EOF > settings/prod.py
-from common import *
+from .common import *
 import os, sys, dj_database_url
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -244,26 +244,29 @@ target/
 EOF
 fi
 
-echo
-echo "----------------------------------------------------------------------------"
-echo "Project '$project_name' created with following structure:"
-echo
-tree --noreport -a -I env "$web_folder"
-echo
-echo "----------------------------------------------------------------------------"
-echo
+cat << EOF
 
-echo "To set up Git and do initial push:"
-echo
-echo "	git init"
-echo "	git add .gitignore README.md web"
-echo "	git commit -m 'Initial import'"
-echo "	git remote add origin {URL}"
-echo "	git push -u origin master"
-echo
+----------------------------------------------------------------------------
+Project '$project_name' created with following structure:
 
-echo "To push this project to Heroku, run the following command"
-echo "from this folder (assuming you've already got the heroku remote set up:"
-echo
-echo "	git subtree push --prefix web heroku master"
-echo
+`tree --noreport -a -I env "$web_folder"`
+
+----------------------------------------------------------------------------
+
+
+To set up Git and do initial push:
+
+	git init
+	git add .gitignore README.md web
+	git commit -m 'Initial import'
+	git remote add origin {URL}
+	git push -u origin master
+
+
+To push this project to Heroku, run the following command
+from this folder (assuming you've already got the heroku remote set up:
+
+	git subtree push --prefix web heroku master
+
+EOF
+
