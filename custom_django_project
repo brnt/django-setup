@@ -10,13 +10,15 @@
 # time. The project structure is Heroku-centric.
 #
 
-web_folder=web
 project_name=${1:-project}
+web_folder=web
 
 if [ -d "$project_name" -o -d "$web_folder" ]; then
 	echo "Project folder exists. Cowardly refusing to continue."
 	exit 1
 fi
+
+mkdir "$project_name" && cd "$project_name"
 
 if [ -f README.md ]; then
 	echo "README.md exists. Not gonna touch it."
@@ -266,3 +268,4 @@ from this folder (assuming you've already got the heroku remote set up:
 
 EOF
 
+cd ..
