@@ -133,12 +133,13 @@ echo "DJANGO_SETTINGS_MODULE=${project_name}.settings.dev" > .env
 cat << EOF | patch -p0 manage.py
 --- manage.py.orig
 +++ manage.py
-@@ -2,10 +2,31 @@
+@@ -2,11 +2,32 @@
  """Django's command-line utility for administrative tasks."""
  import os
  import sys
 +import re
-+
+
+
 +def read_env():
 +    try:
 +        with open('.env') as f:
@@ -155,14 +156,14 @@ cat << EOF | patch -p0 manage.py
 +                val = m2.group(1)
 +            m3 = re.match(r'\A"(.*)"\Z', val)
 +            if m3:
-+                val = re.sub(r'\\\\(.)', r'\1', m3.group(1))
++                val = re.sub(r'\\(.)', r'\1', m3.group(1))
 +            os.environ.setdefault(key, val)
-
-
++
  def main():
+     """Run administrative tasks."""
 -    os.environ.setdefault('DJANGO_SETTINGS_MODULE', '${project_name}.settings')
 +    read_env()
-+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "${project_name}.settings.prod")
++    os.environ.setdefault('DJANGO_SETTINGS_MODULE', '${project_name}.settings.prod')
      try:
          from django.core.management import execute_from_command_line
      except ImportError as exc:
@@ -253,7 +254,9 @@ Project '$project_name' created with following structure:
 
 To create your first app in this project:
 
-	cd ${project_name}/apps/
+	cd ${project_name}
+	. ./env/bin/activate
+	cd ${project_name}/${web_folder}/apps/
 	django-admin startapp appname
 
 To set up Git and do initial push:
@@ -264,6 +267,13 @@ To set up Git and do initial push:
 	git remote add origin {URL}
 	git push -u origin master
 
+To run the development server:
+
+	cd ${project_name}/
+	. ./env/bin/activate
+	cd ${project_name}/${web_folder}
+	python manage.py migrate
+	python manage.py runserver
 
 To push this project to Heroku, run the following command
 from this folder (assuming you've already got the heroku remote set up:
