@@ -74,7 +74,14 @@ touch {apps,libs,middleware,settings}/__init__.py
 mv settings.py settings/common.py
 echo 'from .common import *' > settings/dev.py
 cp -p settings/dev.py settings/test.py
-echo "STATIC_ROOT = 'staticfiles'" >> settings/common.py
+# TODO: make this a patch instead
+echo << EOF >> settings/common.py
+"STATIC_ROOT = 'staticfiles'" 
+import os
+STATICFILES_DIRS = (
+	os.path.join(BASE_DIR, "static"),
+)
+EOF
 
 cat << EOF | patch -p0 wsgi.py
 --- wsgi.py.orig
@@ -256,7 +263,7 @@ To create your first app in this project:
 
 	cd ${project_name}
 	. ./env/bin/activate
-	cd ${project_name}/${web_folder}/apps/
+	cd ${web_folder}/${project_name}/apps/
 	django-admin startapp appname
 
 To set up Git and do initial push:
@@ -271,7 +278,7 @@ To run the development server:
 
 	cd ${project_name}/
 	. ./env/bin/activate
-	cd ${project_name}/${web_folder}
+	cd ${web_folder}/${project_name}
 	python manage.py migrate
 	python manage.py runserver
 
