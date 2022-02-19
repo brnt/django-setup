@@ -12,6 +12,8 @@
 
 project_name=${1:-project}
 web_folder=web
+app_folder=apps
+readme_file=README.md
 
 if [ -d "$project_name" -o -d "$web_folder" ]; then
 	echo "Project folder exists. Cowardly refusing to continue."
@@ -20,10 +22,10 @@ fi
 
 mkdir "$project_name" && cd "$project_name"
 
-if [ -f README.md ]; then
-	echo "README.md exists. Not gonna touch it."
-else
-	echo "# $project_name" > README.md
+save_readme=false
+if [ -f "$readme_file" ]; then
+	save_readme=true
+	echo "$readme_file exists. Not gonna touch it."
 fi
 
 if [ -f Procfile ]; then
@@ -60,7 +62,7 @@ EOF
 
 echo '-r requirements/prod.txt' > requirements.txt
 
-django-admin startproject "$project_name"
+python -m django startproject "$project_name"
 mv "$project_name" "$web_folder"
 
 ### web folder
@@ -68,7 +70,7 @@ cd "$web_folder"
 
 ### project folder
 cd "$project_name"
-mkdir apps libs middleware settings static
+mkdir ${app_folder} libs middleware settings static
 touch {apps,libs,middleware,settings}/__init__.py
 
 mv settings.py settings/common.py
@@ -76,8 +78,10 @@ echo 'from .common import *' > settings/dev.py
 cp -p settings/dev.py settings/test.py
 # TODO: make this a patch instead
 echo << EOF >> settings/common.py
+import os, sys
+sys.path.insert(0, os.path.join(BASE_DIR, '${app_folder}'))
+
 "STATIC_ROOT = 'staticfiles'" 
-import os
 STATICFILES_DIRS = (
 	os.path.join(BASE_DIR, "static"),
 )
@@ -250,7 +254,12 @@ target/
 EOF
 fi
 
-cat << EOF
+redir=/dev/stdout
+if [ "$save_readme" = false ]; then
+	redir=$readme_file
+fi
+cat << EOF > $redir
+# $project_name
 
 ----------------------------------------------------------------------------
 Project '$project_name' created with following structure:
@@ -263,7 +272,7 @@ To create your first app in this project:
 
 	cd ${project_name}
 	. ./env/bin/activate
-	cd ${web_folder}/${project_name}/apps/
+	cd ${web_folder}/${project_name}/${app_folder}/
 	django-admin startapp appname
 
 To set up Git and do initial push:
@@ -288,5 +297,10 @@ from this folder (assuming you've already got the heroku remote set up:
 	git subtree push --prefix web heroku master
 
 EOF
+
+if [ "$save_readme" = false ]; then
+	echo
+	echo "## Please see instructions in $project_name/$readme_file ##"
+fi
 
 cd ..
