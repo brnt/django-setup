@@ -81,10 +81,26 @@ echo << EOF >> settings/common.py
 import os, sys
 sys.path.insert(0, os.path.join(BASE_DIR, '${app_folder}'))
 
-"STATIC_ROOT = 'staticfiles'" 
+'''
+Work around Django 4 bug:
+https://github.com/graphql-python/graphene-django/issues/1284#issuecomment-1019998091
+'''
+import django
+from django.utils.encoding import force_str
+django.utils.encoding.force_text = force_str
+
+STATIC_ROOT = 'staticfiles'
 STATICFILES_DIRS = (
 	os.path.join(BASE_DIR, "static"),
 )
+
+# ID Encoder alphabets
+# Default alphabet. You should definitely scramble these characters each time.
+ENCODER_ALPHABETS = defaultdict(lambda: 'us28h7myn3c46x5rgabqfz9tpjdekvw')
+
+# You can create one per model class like this:
+# ENCODER_ALPHABETS['Person'] = os.environ.get('ALPHABET_Person', 'u5r3pvcemx4fbd86wgaqhyt27z9jnks')
+
 EOF
 
 cat << EOF | patch -p0 wsgi.py
