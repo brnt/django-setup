@@ -155,7 +155,10 @@ EOF
 ### up to web folder
 cd ..
 
-echo "DJANGO_SETTINGS_MODULE=${project_name}.settings.dev" > .env
+cat << EOF > .env
+# Local override to set dev environment
+DJANGO_SETTINGS_MODULE=${project_name}.settings.dev
+EOF
 
 cat << EOF | patch -p0 manage.py
 --- manage.py.orig
@@ -198,6 +201,12 @@ EOF
 
 ### up to original folder
 cd ..
+
+cat << EOF > .env
+# This helps VSCode use the proper Python import path
+PYTHONPATH=web
+EOF
+
 if [ ! -f .gitignore ]; then
 cat << EOF > .gitignore
 # Environment stuff
