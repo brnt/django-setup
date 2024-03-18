@@ -300,7 +300,7 @@ To create your first app in this project:
 	cd ${project_name}
 	. ./env/bin/activate
 	cd ${web_folder}/${project_name}/${app_folder}/
-	django-admin startapp appname [destination folder]
+	django-admin startapp appname ${project_name}/${app_folder}/[app name]
 
 To set up Git and do initial push:
 
