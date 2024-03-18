@@ -20,7 +20,7 @@ if [ -d "$project_name" -o -d "$web_folder" ]; then
 	exit 1
 fi
 
-mkdir "$project_name" && cd "$project_name"
+mkdir "$project_name" && pushd "$project_name"
 
 save_readme=false
 if [ -f "$readme_file" ]; then
@@ -43,8 +43,17 @@ exec gunicorn ${project_name}.wsgi --log-file -
 EOF
 chmod +x bin/runserver
 
-python3 -m venv env
-. ./env/bin/activate
+cat << EOF > .envrc
+layout python3
+
+if [[ -f .env ]]; then
+    source_env .env
+fi
+EOF
+
+# this activates direnv and makes it live in the currently-running script
+direnv allow . && eval "$(direnv export $SHELL)"
+
 pip install --upgrade pip
 pip install django pytz
 
@@ -54,6 +63,9 @@ echo '-r common.txt' > requirements/prod.txt
 cp -p requirements/prod.txt requirements/dev.txt
 cp -p requirements/prod.txt requirements/test.txt
 cat << EOF >> requirements/prod.txt
+# These are specific to Heroku + PostgreSQL. If you're using something else,
+# you might need to install something else.
+
 dj-database-url>=0.3.0
 psycopg2>=2.6.1
 gunicorn>=19.1.1
@@ -66,10 +78,10 @@ python -m django startproject "$project_name"
 mv "$project_name" "$web_folder"
 
 ### web folder
-cd "$web_folder"
+pushd "$web_folder"
 
 ### project folder
-cd "$project_name"
+pushd "$project_name"
 mkdir ${app_folder} libs middleware settings static
 touch {apps,libs,middleware,settings}/__init__.py
 
@@ -153,7 +165,7 @@ STATICFILES_STORAGE = 'whitenoise.django.GzipManifestStaticFilesStorage'
 EOF
 
 ### up to web folder
-cd ..
+popd
 
 cat << EOF > .env
 # Local override to set dev environment
@@ -200,7 +212,7 @@ cat << EOF | patch -p0 manage.py
 EOF
 
 ### up to original folder
-cd ..
+popd
 
 cat << EOF > .env
 # This helps VSCode use the proper Python import path
@@ -231,6 +243,7 @@ __pycache__/
 
 # Distribution / packaging
 env/
+direnv/
 .Python
 build/
 develop-eggs/
@@ -297,9 +310,7 @@ Project '$project_name' created with following structure:
 
 To create your first app in this project:
 
-	cd ${project_name}
-	. ./env/bin/activate
-	cd ${web_folder}/${project_name}/${app_folder}/
+	cd ${project_name}/${web_folder}/${project_name}/${app_folder}/
 	django-admin startapp appname ${project_name}/${app_folder}/[app name]
 
 To set up Git and do initial push:
@@ -308,20 +319,18 @@ To set up Git and do initial push:
 	git add .gitignore README.md web
 	git commit -m 'Initial import'
 	git remote add origin {URL}
-	git push -u origin master
+	git push -u origin main
 
 To run the development server:
 
-	cd ${project_name}/
-	. ./env/bin/activate
-	cd ${web_folder}/${project_name}
+	cd ${project_name}/${web_folder}/${project_name}
 	python manage.py migrate
 	python manage.py runserver
 
 To push this project to Heroku, run the following command
 from this folder (assuming you've already got the heroku remote set up:
 
-	git subtree push --prefix web heroku master
+	git subtree push --prefix web heroku main
 
 EOF
 
@@ -330,4 +339,4 @@ if [ "$save_readme" = false ]; then
 	echo "## Please see instructions in $project_name/$readme_file ##"
 fi
 
-cd ..
+popd
